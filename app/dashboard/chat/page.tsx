@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Send, Bot, User, Lightbulb, Calendar, FileText, BookOpen } from "lucide-react";
+import { Send, Bot, User, Lightbulb, Calendar, FileText, BookOpen, Trash2 } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 
 interface ChatMessage {
   id: string;
@@ -23,7 +24,7 @@ const samplePrompts = [
   },
   {
     icon: FileText,
-    text: "Summarize my chemistry notes",
+    text: "Summarize this: The water cycle involves evaporation, condensation, and precipitation in nature...",
     category: "Notes"
   },
   {
@@ -39,19 +40,84 @@ const samplePrompts = [
 ];
 
 export default function ChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      content: "Hi! I'm Budi, your AI study assistant. I'm here to help you with your academic journey. You can ask me to summarize notes, create study plans, manage your schedule, or answer any questions about your subjects. How can I help you today?",
-      role: 'assistant',
-      timestamp: new Date()
-    }
-  ]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const supabase = createClient();
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // Load user and chat history on component mount
+  useEffect(() => {
+    const loadUserAndHistory = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUser(user);
+
+        if (user) {
+          // Load chat history from database
+          const response = await fetch('/api/chat/history', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id })
+          });
+
+          if (response.ok) {
+            const { history } = await response.json();
+            const formattedHistory = history.map((chat: { id: string; message: string; response: string; created_at: string }) => [
+              {
+                id: `${chat.id}-user`,
+                content: chat.message,
+                role: 'user' as const,
+                timestamp: new Date(chat.created_at)
+              },
+              {
+                id: `${chat.id}-assistant`,
+                content: chat.response,
+                role: 'assistant' as const,
+                timestamp: new Date(chat.created_at)
+              }
+            ]).flat().reverse();
+
+            // Add welcome message if no history
+            if (formattedHistory.length === 0) {
+              setMessages([{
+                id: 'welcome',
+                content: "Hi! I'm Budi, your AI study assistant. I'm here to help you with your academic journey. You can ask me to summarize notes, create study plans, manage your schedule, or answer any questions about your subjects. How can I help you today?",
+                role: 'assistant',
+                timestamp: new Date()
+              }]);
+            } else {
+              setMessages(formattedHistory);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error loading chat history:', error);
+        // Set welcome message on error
+        setMessages([{
+          id: 'welcome',
+          content: "Hi! I'm Budi, your AI study assistant. I'm here to help you with your academic journey. You can ask me to summarize notes, create study plans, manage your schedule, or answer any questions about your subjects. How can I help you today?",
+          role: 'assistant',
+          timestamp: new Date()
+        }]);
+      } finally {
+        setIsLoadingHistory(false);
+      }
+    };
+
+    loadUserAndHistory();
+  }, [supabase.auth]);
 
   const handleSendMessage = async (message: string) => {
-    if (!message.trim()) return;
+    if (!message.trim() || !user) return;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -64,32 +130,44 @@ export default function ChatPage() {
     setInputValue('');
     setIsLoading(true);
 
-    // Simulate AI response (in real app, this would call your AI service)
-    setTimeout(() => {
+    try {
+      // Call our AI API
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: message,
+          userId: user.id
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
+      }
+
+      const { response: aiResponseText } = await response.json();
+
       const aiResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
-        content: generateAIResponse(message),
+        content: aiResponseText,
         role: 'assistant',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, aiResponse]);
-      setIsLoading(false);
-    }, 1000);
-  };
 
-  const generateAIResponse = (userMessage: string): string => {
-    const lowerMessage = userMessage.toLowerCase();
-    
-    if (lowerMessage.includes('schedule') || lowerMessage.includes('remind')) {
-      return "I can help you manage your schedule! I'll create a reminder for you. You can also use the Schedule page to view and manage all your classes and deadlines. Would you like me to add this to your schedule now?";
-    } else if (lowerMessage.includes('note') || lowerMessage.includes('summarize')) {
-      return "I'd be happy to help summarize your notes! You can upload your notes or paste text directly in the Note Summarizer section. I can create bullet points, key concepts, or even flashcards from your materials. What subject are your notes about?";
-    } else if (lowerMessage.includes('study plan') || lowerMessage.includes('exam')) {
-      return "Creating a personalized study plan is one of my specialties! I can help you break down your subjects, set realistic goals, and create a timeline. Head over to the Study Plan section, or tell me about your upcoming exams and I'll get started right away.";
-    } else if (lowerMessage.includes('explain') || lowerMessage.includes('help me understand')) {
-      return "I'm great at breaking down complex concepts into simple explanations! Feel free to ask me about any subject - whether it's math, science, history, or literature. I can provide step-by-step explanations, examples, and even create analogies to help you understand better.";
-    } else {
-      return "That's a great question! I'm here to help with all aspects of your academic life. Whether you need help with scheduling, note-taking, study planning, or understanding complex topics, I'm ready to assist. Is there a specific area you'd like to focus on today?";
+      setMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      const errorResponse: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        content: "I'm sorry, I'm having trouble responding right now. Please try again in a moment.",
+        role: 'assistant',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -97,14 +175,75 @@ export default function ChatPage() {
     handleSendMessage(prompt);
   };
 
+  const clearChatHistory = async () => {
+    if (!user) return;
+
+    try {
+      const response = await fetch('/api/chat/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: user.id })
+      });
+
+      if (response.ok) {
+        setMessages([{
+          id: 'welcome',
+          content: "Hi! I'm Budi, your AI study assistant. I'm here to help you with your academic journey. You can ask me to summarize notes, create study plans, manage your schedule, or answer any questions about your subjects. How can I help you today?",
+          role: 'assistant',
+          timestamp: new Date()
+        }]);
+      }
+    } catch (error) {
+      console.error('Error clearing chat history:', error);
+    }
+  };
+
+  if (!user && isLoadingHistory) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="flex space-x-1 justify-center mb-4">
+            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+            <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+          </div>
+          <p className="text-muted-foreground">Loading your chat...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">Please log in to use the AI chat assistant.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full flex flex-col space-y-6">
       <div className="flex-shrink-0">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bot className="h-6 w-6 text-primary" />
-              AI Assistant Chat
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Bot className="h-6 w-6 text-primary" />
+                AI Assistant Chat
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearChatHistory}
+                disabled={isLoading || messages.length <= 1}
+                className="flex items-center gap-2"
+              >
+                <Trash2 className="h-4 w-4" />
+                Clear Chat
+              </Button>
             </CardTitle>
           </CardHeader>
         </Card>
@@ -144,7 +283,16 @@ export default function ChatPage() {
         <CardContent className="flex-1 flex flex-col p-0">
           <ScrollArea className="flex-1 p-4">
             <div className="space-y-4">
-              {messages.map((message) => (
+              {isLoadingHistory ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                </div>
+              ) : (
+                messages.map((message) => (
                 <div
                   key={message.id}
                   className={`flex gap-3 ${
@@ -183,7 +331,8 @@ export default function ChatPage() {
                     </div>
                   )}
                 </div>
-              ))}
+                ))
+              )}
               
               {isLoading && (
                 <div className="flex gap-3">
@@ -199,6 +348,7 @@ export default function ChatPage() {
                   </div>
                 </div>
               )}
+              <div ref={messagesEndRef} />
             </div>
           </ScrollArea>
           
@@ -220,7 +370,7 @@ export default function ChatPage() {
               />
               <Button 
                 onClick={() => handleSendMessage(inputValue)}
-                disabled={isLoading || !inputValue.trim()}
+                disabled={isLoading || !inputValue.trim() || !user}
                 size="icon"
               >
                 <Send className="h-4 w-4" />
