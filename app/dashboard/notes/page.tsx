@@ -40,10 +40,6 @@ export default function NotesPage() {
 
   const supabase = createClient();
 
-  // Load notes on component mount
-  useEffect(() => {
-    loadNotes();
-  }, [loadNotes]);
 
   const loadNotes = async () => {
     try {
@@ -70,6 +66,11 @@ export default function NotesPage() {
     }
   };
 
+    // Load notes on component mount
+    useEffect(() => {
+      loadNotes();
+    }, [loadNotes]);
+  
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
