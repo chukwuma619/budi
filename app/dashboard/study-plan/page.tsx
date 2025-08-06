@@ -20,98 +20,26 @@ import {
   Trash2,
   Eye,
   EyeOff,
-  AlertCircle
+  AlertCircle,
+  X,
+  Save,
+  Loader2,
+  TrendingUp,
+  CalendarDays
 } from "lucide-react";
+import { Database } from '@/types/database.types';
 
-interface DatabaseStudyPlan {
-  id: string;
-  subject: string;
-  exam_date: string;
-  hours_per_day: number;
-  total_days: number;
-  progress: number | null;
-  created_at: string;
-  study_days: DatabaseStudyDay[];
-}
-
-interface DatabaseStudyDay {
-  id: string;
-  day_number: number;
-  date: string;
-  total_hours: number;
-  completed: boolean | null;
-  study_tasks: DatabaseStudyTask[];
-}
-
-interface DatabaseStudyTask {
-  id: string;
-  title: string;
-  duration: number;
-  task_type: string | null;
-  priority: string | null;
-  completed: boolean | null;
-}
-
-interface StudyPlan {
-  id: string;
-  subject: string;
-  examDate: string;
-  hoursPerDay: number;
-  totalDays: number;
-  progress: number;
-  createdAt: Date;
-  plan: StudyDay[];
-}
-
-interface StudyDay {
-  id: string;
-  day: number;
-  date: string;
-  tasks: StudyTask[];
-  totalHours: number;
-  completed: boolean;
-}
-
-interface StudyTask {
-  id: string;
-  title: string;
-  duration: number;
-  type: 'reading' | 'practice' | 'review' | 'quiz';
-  completed: boolean;
-  priority: 'high' | 'medium' | 'low';
-}
-
-function transformDatabasePlan(dbPlan: DatabaseStudyPlan): StudyPlan {
-  return {
-    id: dbPlan.id,
-    subject: dbPlan.subject,
-    examDate: dbPlan.exam_date,
-    hoursPerDay: dbPlan.hours_per_day,
-    totalDays: dbPlan.total_days,
-    progress: dbPlan.progress || 0,
-    createdAt: new Date(dbPlan.created_at),
-    plan: dbPlan.study_days.map(day => ({
-      id: day.id,
-      day: day.day_number,
-      date: day.date,
-      totalHours: day.total_hours,
-      completed: day.completed || false,
-      tasks: day.study_tasks.map(task => ({
-        id: task.id,
-        title: task.title,
-        duration: task.duration,
-        type: (task.task_type as StudyTask['type']) || 'reading',
-        completed: task.completed || false,
-        priority: (task.priority as StudyTask['priority']) || 'medium'
-      }))
-    })).sort((a, b) => a.day - b.day)
-  };
-}
+type StudyPlan = Database['public']['Tables']['study_plans']['Row'] & {
+  study_days: (Database['public']['Tables']['study_days']['Row'] & {
+    study_tasks: Database['public']['Tables']['study_tasks']['Row'][];
+  })[];
+};
 
 export default function StudyPlanPage() {
   const [studyPlans, setStudyPlans] = useState<StudyPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [expandedPlans, setExpandedPlans] = useState<Set<string>>(new Set());
@@ -128,9 +56,22 @@ export default function StudyPlanPage() {
     fetchStudyPlans();
   }, []);
 
+  // Clear messages after 3 seconds
+  useEffect(() => {
+    if (error || success) {
+      const timer = setTimeout(() => {
+        setError(null);
+        setSuccess(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, success]);
+
   const fetchStudyPlans = async () => {
     try {
       setLoading(true);
+      setError(null);
+      
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -138,29 +79,62 @@ export default function StudyPlanPage() {
         return;
       }
 
-      const response = await fetch('/api/study-plan');
-      if (!response.ok) {
-        throw new Error('Failed to fetch study plans');
+      const { data, error: dbError } = await supabase
+        .from('study_plans')
+        .select(`
+          *,
+          study_days (
+            *,
+            study_tasks (*)
+          )
+        `)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (dbError) {
+        console.error('Error fetching study plans:', dbError);
+        setError('Failed to load study plans. Please try again.');
+        return;
       }
 
-      const dbPlans: DatabaseStudyPlan[] = await response.json();
-      const transformedPlans = dbPlans.map(transformDatabasePlan);
-      setStudyPlans(transformedPlans);
+      setStudyPlans(data || []);
     } catch (error) {
       console.error('Error fetching study plans:', error);
-      setError('Failed to load study plans');
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const validateForm = () => {
+    if (!newPlan.subject.trim()) {
+      setError('Subject is required');
+      return false;
+    }
+    if (!newPlan.examDate) {
+      setError('Exam date is required');
+      return false;
+    }
+    if (newPlan.hoursPerDay < 1 || newPlan.hoursPerDay > 12) {
+      setError('Hours per day must be between 1 and 12');
+      return false;
+    }
+    return true;
+  };
+
   const generateStudyPlan = async () => {
-    if (!newPlan.subject || !newPlan.examDate) return;
+    if (!validateForm()) return;
     
     setIsGenerating(true);
     setError(null);
     
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError('Please log in to create study plans');
+        return;
+      }
+
       const examDate = new Date(newPlan.examDate);
       const today = new Date();
       const totalDays = Math.ceil((examDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -168,12 +142,30 @@ export default function StudyPlanPage() {
       
       if (actualDays <= 0) {
         setError('Please select a future date for your exam');
-        setIsGenerating(false);
+        return;
+      }
+
+      // Create the study plan
+      const { data: planData, error: planError } = await supabase
+        .from('study_plans')
+        .insert({
+          user_id: user.id,
+          subject: newPlan.subject.trim(),
+          exam_date: newPlan.examDate,
+          hours_per_day: newPlan.hoursPerDay,
+          total_days: actualDays,
+          progress: 0
+        })
+        .select()
+        .single();
+
+      if (planError) {
+        console.error('Error creating study plan:', planError);
+        setError('Failed to create study plan. Please try again.');
         return;
       }
 
       // Generate study days with tasks
-      const studyDays = [];
       const baseTopics = newPlan.topics 
         ? newPlan.topics.split(',').map(t => t.trim())
         : [
@@ -192,6 +184,24 @@ export default function StudyPlanPage() {
         const isEarlyDays = i < actualDays * 0.4;
         const isMidDays = i >= actualDays * 0.4 && i < actualDays * 0.8;
         
+        // Create study day
+        const { data: dayData, error: dayError } = await supabase
+          .from('study_days')
+          .insert({
+            study_plan_id: planData.id,
+            day_number: i + 1,
+            date: dayDate.toISOString().split('T')[0],
+            total_hours: newPlan.hoursPerDay,
+            completed: false
+          })
+          .select()
+          .single();
+
+        if (dayError) {
+          console.error('Error creating study day:', dayError);
+          continue;
+        }
+
         let dayTasks = [];
         
         if (isEarlyDays) {
@@ -244,38 +254,27 @@ export default function StudyPlanPage() {
           ];
         }
 
-        studyDays.push({
-          day_number: i + 1,
-          date: dayDate.toISOString().split('T')[0],
-          total_hours: newPlan.hoursPerDay,
-          tasks: dayTasks
-        });
-      }
-
-      const response = await fetch('/api/study-plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          subject: newPlan.subject,
-          examDate: newPlan.examDate,
-          hoursPerDay: newPlan.hoursPerDay,
-          topics: newPlan.topics,
-          studyDays
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create study plan');
+        // Create tasks for this day
+        for (const task of dayTasks) {
+          await supabase
+            .from('study_tasks')
+            .insert({
+              study_day_id: dayData.id,
+              title: task.title,
+              duration: task.duration,
+              task_type: task.task_type,
+              priority: task.priority,
+              completed: false
+            });
+        }
       }
 
       await fetchStudyPlans();
-      setNewPlan({ subject: '', examDate: '', hoursPerDay: 2, topics: '' });
-      setShowCreateForm(false);
+      resetForm();
+      setSuccess('Study plan created successfully!');
     } catch (error) {
       console.error('Error creating study plan:', error);
-      setError('Failed to create study plan');
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsGenerating(false);
     }
@@ -283,26 +282,87 @@ export default function StudyPlanPage() {
 
   const toggleTaskCompletion = async (taskId: string) => {
     try {
-      const response = await fetch('/api/study-plan/tasks', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          taskId,
-          action: 'toggle'
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to update task');
+      setError(null);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError('Please log in to update tasks');
+        return;
       }
 
-      // Refresh the study plans to get updated progress
+      // Get the current task
+      const { data: task, error: taskError } = await supabase
+        .from('study_tasks')
+        .select('*, study_days!inner(study_plans!inner(user_id))')
+        .eq('id', taskId)
+        .single();
+
+      if (taskError || !task) {
+        setError('Task not found');
+        return;
+      }
+
+      // Verify user owns this task
+      if (task.study_days.study_plans.user_id !== user.id) {
+        setError('Unauthorized to update this task');
+        return;
+      }
+
+      // Toggle completion
+      const { data: updatedTask, error: updateError } = await supabase
+        .from('study_tasks')
+        .update({ completed: !task.completed })
+        .eq('id', taskId)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('Error updating task:', updateError);
+        setError('Failed to update task. Please try again.');
+        return;
+      }
+
+      // Update study day completion if all tasks are done
+      const { data: allTasks } = await supabase
+        .from('study_tasks')
+        .select('completed')
+        .eq('study_day_id', task.study_day_id);
+
+      const allCompleted = allTasks?.every(t => t.completed) || false;
+
+      await supabase
+        .from('study_days')
+        .update({ completed: allCompleted })
+        .eq('id', task.study_day_id);
+
+      // Update study plan progress
+      await updateStudyPlanProgress(task.study_days.study_plan_id);
+
       await fetchStudyPlans();
+      setSuccess(`Task ${updatedTask.completed ? 'completed' : 'uncompleted'} successfully!`);
     } catch (error) {
       console.error('Error updating task:', error);
-      setError('Failed to update task');
+      setError('An unexpected error occurred. Please try again.');
+    }
+  };
+
+  const updateStudyPlanProgress = async (planId: string) => {
+    try {
+      const { data: studyDays } = await supabase
+        .from('study_days')
+        .select('completed')
+        .eq('study_plan_id', planId);
+
+      if (studyDays && studyDays.length > 0) {
+        const completedDays = studyDays.filter(day => day.completed).length;
+        const progress = Math.round((completedDays / studyDays.length) * 100);
+
+        await supabase
+          .from('study_plans')
+          .update({ progress })
+          .eq('id', planId);
+      }
+    } catch (error) {
+      console.error('Error updating study plan progress:', error);
     }
   };
 
@@ -312,19 +372,41 @@ export default function StudyPlanPage() {
     }
 
     try {
-      const response = await fetch(`/api/study-plan?id=${planId}`, {
-        method: 'DELETE',
-      });
+      setError(null);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setError('Please log in to delete study plans');
+        return;
+      }
 
-      if (!response.ok) {
-        throw new Error('Failed to delete study plan');
+      const { error: deleteError } = await supabase
+        .from('study_plans')
+        .delete()
+        .eq('id', planId)
+        .eq('user_id', user.id);
+
+      if (deleteError) {
+        console.error('Error deleting study plan:', deleteError);
+        setError('Failed to delete study plan. Please try again.');
+        return;
       }
 
       await fetchStudyPlans();
+      setSuccess('Study plan deleted successfully!');
     } catch (error) {
       console.error('Error deleting study plan:', error);
-      setError('Failed to delete study plan');
+      setError('An unexpected error occurred. Please try again.');
     }
+  };
+
+  const resetForm = () => {
+    setNewPlan({
+      subject: '',
+      examDate: '',
+      hoursPerDay: 2,
+      topics: ''
+    });
+    setShowCreateForm(false);
   };
 
   const togglePlanExpansion = (planId: string) => {
@@ -339,7 +421,7 @@ export default function StudyPlanPage() {
     });
   };
 
-  const getTaskTypeIcon = (type: StudyTask['type']) => {
+  const getTaskTypeIcon = (type: string) => {
     switch (type) {
       case 'reading': return <BookOpen className="h-4 w-4" />;
       case 'practice': return <Target className="h-4 w-4" />;
@@ -349,22 +431,22 @@ export default function StudyPlanPage() {
     }
   };
 
-  const getPriorityColor = (priority: StudyTask['priority']) => {
+  const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high': return 'bg-red-500';
-      case 'medium': return 'bg-yellow-500';
-      case 'low': return 'bg-green-500';
-      default: return 'bg-gray-500';
+      case 'high': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+      case 'medium': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200';
+      case 'low': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
     }
   };
 
-  const getTypeColor = (type: StudyTask['type']) => {
+  const getTypeColor = (type: string) => {
     switch (type) {
-      case 'reading': return 'bg-blue-500';
-      case 'practice': return 'bg-green-500';
-      case 'review': return 'bg-purple-500';
-      case 'quiz': return 'bg-orange-500';
-      default: return 'bg-gray-500';
+      case 'reading': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'practice': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'review': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+      case 'quiz': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
+      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
     }
   };
 
@@ -387,74 +469,114 @@ export default function StudyPlanPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading your study plans...</p>
-          </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center space-y-4">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <span className="text-muted-foreground">Loading your study plans...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Study Plans</h1>
-          <p className="text-gray-600 mt-2">Create and manage your personalized study schedules</p>
+          <h1 className="text-2xl lg:text-3xl font-bold tracking-tight">Study Plans</h1>
+          <p className="text-muted-foreground mt-1">Create and manage your personalized study schedules</p>
         </div>
-        <Button onClick={() => setShowCreateForm(true)} className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
+        <Button 
+          onClick={() => setShowCreateForm(true)} 
+          className="w-full sm:w-auto"
+          size="sm"
+        >
+          <Plus className="h-4 w-4 mr-2" />
           Create Study Plan
         </Button>
       </div>
 
+      {/* Error/Success Messages */}
       {error && (
-        <Card className="border-red-200 bg-red-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2 text-red-700">
-              <AlertCircle className="h-5 w-5" />
-              <p>{error}</p>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg dark:bg-red-900/20 dark:border-red-800">
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+          <span className="text-red-800 dark:text-red-200 text-sm">{error}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setError(null)}
+            className="ml-auto h-6 w-6 p-0 text-red-600 hover:text-red-800"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
       )}
 
+      {success && (
+        <div className="flex items-center gap-2 p-4 bg-green-50 border border-green-200 rounded-lg dark:bg-green-900/20 dark:border-green-800">
+          <div className="h-5 w-5 text-green-600 dark:text-green-400">✓</div>
+          <span className="text-green-800 dark:text-green-200 text-sm">{success}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSuccess(null)}
+            className="ml-auto h-6 w-6 p-0 text-green-600 hover:text-green-800"
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
+      {/* Create Form */}
       {showCreateForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Brain className="h-5 w-5" />
-              Create New Study Plan
-            </CardTitle>
-            <CardDescription>
-              Set up a personalized study schedule with AI-generated tasks and milestones
-            </CardDescription>
+        <Card className="border-2 border-primary/20">
+          <CardHeader className="pb-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5" />
+                  Create New Study Plan
+                </CardTitle>
+                <CardDescription>
+                  Set up a personalized study schedule with AI-generated tasks and milestones
+                </CardDescription>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={resetForm}
+                className="h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="subject">Subject</Label>
+            <div className="mobile-form-grid">
+              <div className="mobile-form-full">
+                <Label htmlFor="subject">Subject *</Label>
                 <Input
                   id="subject"
                   placeholder="e.g., Advanced Mathematics"
                   value={newPlan.subject}
                   onChange={(e) => setNewPlan(prev => ({ ...prev, subject: e.target.value }))}
+                  className="mt-1"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="examDate">Exam Date</Label>
+              
+              <div>
+                <Label htmlFor="examDate">Exam Date *</Label>
                 <Input
                   id="examDate"
                   type="date"
                   value={newPlan.examDate}
                   onChange={(e) => setNewPlan(prev => ({ ...prev, examDate: e.target.value }))}
+                  className="mt-1"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="hoursPerDay">Hours per Day</Label>
+              
+              <div>
+                <Label htmlFor="hoursPerDay">Hours per Day *</Label>
                 <Input
                   id="hoursPerDay"
                   type="number"
@@ -462,29 +584,32 @@ export default function StudyPlanPage() {
                   max="12"
                   value={newPlan.hoursPerDay}
                   onChange={(e) => setNewPlan(prev => ({ ...prev, hoursPerDay: parseInt(e.target.value) || 2 }))}
+                  className="mt-1"
                 />
               </div>
-              <div className="space-y-2">
+              
+              <div>
                 <Label htmlFor="topics">Topics (Optional)</Label>
                 <Input
                   id="topics"
                   placeholder="e.g., Calculus, Algebra, Statistics"
                   value={newPlan.topics}
                   onChange={(e) => setNewPlan(prev => ({ ...prev, topics: e.target.value }))}
+                  className="mt-1"
                 />
               </div>
             </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowCreateForm(false)}>
-                Cancel
-              </Button>
+            
+            <div className="flex flex-col sm:flex-row gap-2 pt-2">
               <Button 
                 onClick={generateStudyPlan} 
                 disabled={!newPlan.subject || !newPlan.examDate || isGenerating}
+                className="flex-1 sm:flex-none"
+                size="sm"
               >
                 {isGenerating ? (
                   <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     Generating...
                   </>
                 ) : (
@@ -494,62 +619,82 @@ export default function StudyPlanPage() {
                   </>
                 )}
               </Button>
+              <Button 
+                variant="outline" 
+                onClick={resetForm}
+                className="flex-1 sm:flex-none"
+                size="sm"
+              >
+                Cancel
+              </Button>
             </div>
           </CardContent>
         </Card>
       )}
 
-      <div className="grid gap-6">
+      {/* Study Plans List */}
+      <div className="space-y-4">
         {studyPlans.length === 0 ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8">
-                <BookOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">No Study Plans Yet</h3>
-                <p className="text-gray-600 mb-4">
-                  Create your first study plan to get organized and stay on track with your goals.
-                </p>
-                <Button onClick={() => setShowCreateForm(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Your First Study Plan
-                </Button>
-              </div>
+          <Card className="text-center py-12">
+            <CardContent>
+              <BookOpen className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-semibold mb-2">No Study Plans Yet</h3>
+              <p className="text-muted-foreground mb-4">
+                Create your first study plan to get organized and stay on track with your goals.
+              </p>
+              <Button onClick={() => setShowCreateForm(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create Your First Study Plan
+              </Button>
             </CardContent>
           </Card>
         ) : (
           studyPlans.map((plan) => {
-            const daysUntilExam = getDaysUntilExam(plan.examDate);
+            const daysUntilExam = getDaysUntilExam(plan.exam_date);
             const isExpanded = expandedPlans.has(plan.id);
             
             return (
-              <Card key={plan.id} className="relative">
+              <Card key={plan.id} className="study-plan-card">
                 <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="flex items-center gap-2">
-                        <BookOpen className="h-5 w-5" />
-                        {plan.subject}
+                  <div className="study-plan-header">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="study-plan-title">
+                        <BookOpen className="h-5 w-5 flex-shrink-0" />
+                        <span className="truncate">{plan.subject}</span>
                         {daysUntilExam <= 3 && daysUntilExam > 0 && (
-                          <Badge variant="destructive" className="ml-2">
+                          <Badge variant="destructive" className="flex-shrink-0">
                             {daysUntilExam} day{daysUntilExam !== 1 ? 's' : ''} left!
                           </Badge>
                         )}
                         {daysUntilExam <= 0 && (
-                          <Badge variant="secondary" className="ml-2">
+                          <Badge variant="secondary" className="flex-shrink-0">
                             Exam passed
                           </Badge>
                         )}
                       </CardTitle>
-                      <CardDescription>
-                        Exam: {new Date(plan.examDate).toLocaleDateString()} • 
-                        {plan.hoursPerDay}h/day • {plan.totalDays} days
+                      <CardDescription className="mt-1">
+                        <div className="study-plan-meta">
+                          <span className="flex items-center gap-1">
+                            <CalendarDays className="h-3 w-3" />
+                            {new Date(plan.exam_date).toLocaleDateString()}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {plan.hours_per_day}h/day
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <TrendingUp className="h-3 w-3" />
+                            {plan.total_days} days
+                          </span>
+                        </div>
                       </CardDescription>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => togglePlanExpansion(plan.id)}
+                        className="h-8 w-8 p-0"
                       >
                         {isExpanded ? (
                           <EyeOff className="h-4 w-4" />
@@ -561,28 +706,29 @@ export default function StudyPlanPage() {
                         variant="ghost"
                         size="sm"
                         onClick={() => deletePlan(plan.id)}
-                        className="text-red-600 hover:text-red-700"
+                        className="text-red-600 hover:text-red-700 h-8 w-8 p-0"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4 mt-4">
+                  
+                  <div className="study-plan-progress">
                     <div className="flex-1">
-                      <div className="flex items-center justify-between text-sm text-gray-600 mb-1">
+                      <div className="flex items-center justify-between text-sm text-muted-foreground mb-1">
                         <span>Progress</span>
-                        <span>{plan.progress}%</span>
+                        <span>{plan.progress || 0}%</span>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${plan.progress}%` }}
-                        ></div>
-                      </div>
+                                             <div className="progress-bar">
+                         <div 
+                           className="progress-fill"
+                           style={{ width: `${plan.progress || 0}%` }}
+                         ></div>
+                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="text-sm text-gray-600">Total Hours</div>
-                      <div className="font-semibold">{plan.totalDays * plan.hoursPerDay}h</div>
+                      <div className="text-sm text-muted-foreground">Total Hours</div>
+                      <div className="font-semibold">{plan.total_days * plan.hours_per_day}h</div>
                     </div>
                   </div>
                 </CardHeader>
@@ -590,46 +736,47 @@ export default function StudyPlanPage() {
                 {isExpanded && (
                   <CardContent>
                     <div className="space-y-4">
-                      {plan.plan.map((day) => (
-                        <Card key={day.id} className={`${day.completed ? 'bg-green-50 border-green-200' : ''}`}>
-                          <CardHeader className="pb-3">
-                            <div className="flex items-center justify-between">
-                              <CardTitle className="text-lg flex items-center gap-2">
+                                             {plan.study_days?.map((day) => (
+                         <Card key={day.id} className={`study-day-card ${day.completed ? 'bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800' : ''}`}>
+                           <CardHeader className="pb-3">
+                             <div className="study-day-header">
+                              <CardTitle className="text-base flex items-center gap-2">
                                 <Calendar className="h-4 w-4" />
-                                Day {day.day} - {new Date(day.date).toLocaleDateString()}
+                                Day {day.day_number} - {new Date(day.date).toLocaleDateString()}
                                 {day.completed && (
                                   <CheckCircle className="h-4 w-4 text-green-600" />
                                 )}
                               </CardTitle>
-                              <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <Clock className="h-4 w-4" />
-                                {day.totalHours}h
+                                {day.total_hours}h
                               </div>
                             </div>
                           </CardHeader>
                           <CardContent>
                             <div className="space-y-3">
-                              {day.tasks.map((task) => (
-                                <div key={task.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border">
+                                                             {day.study_tasks?.map((task) => (
+                                 <div key={task.id} className="study-task-item">
                                   <Checkbox 
-                                    checked={task.completed}
+                                    checked={task.completed || false}
                                     onCheckedChange={() => toggleTaskCompletion(task.id)}
+                                    className="mt-1"
                                   />
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-2 mb-1">
-                                      {getTaskTypeIcon(task.type)}
-                                      <span className={`font-medium ${task.completed ? 'line-through text-gray-500' : ''}`}>
-                                        {task.title}
-                                      </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                                      <Badge variant="outline" className={`text-white ${getTypeColor(task.type)}`}>
-                                        {task.type}
+                                                                     <div className="study-task-content">
+                                     <div className="study-task-title">
+                                       {getTaskTypeIcon(task.task_type || 'reading')}
+                                       <span className={`font-medium line-clamp-2 ${task.completed ? 'line-through text-muted-foreground' : ''}`}>
+                                         {task.title}
+                                       </span>
+                                     </div>
+                                     <div className="study-task-meta">
+                                      <Badge variant="outline" className={getTypeColor(task.task_type || 'reading')}>
+                                        {task.task_type || 'reading'}
                                       </Badge>
-                                      <Badge variant="outline" className={`text-white ${getPriorityColor(task.priority)}`}>
-                                        {task.priority}
+                                      <Badge variant="outline" className={getPriorityColor(task.priority || 'medium')}>
+                                        {task.priority || 'medium'}
                                       </Badge>
-                                      <span>{formatDuration(task.duration)}</span>
+                                      <span className="text-muted-foreground">{formatDuration(task.duration)}</span>
                                     </div>
                                   </div>
                                 </div>
