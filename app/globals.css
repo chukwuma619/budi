@@ -66,3 +66,56 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .prose {
+    @apply text-foreground;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  
+  .prose code {
+    @apply bg-secondary text-foreground px-1 py-0.5 rounded text-xs;
+    word-break: break-all;
+  }
+  
+  .prose pre {
+    @apply bg-secondary border rounded-md p-3 overflow-x-auto;
+    max-width: 100%;
+  }
+  
+  .prose pre code {
+    @apply bg-transparent p-0;
+    word-break: normal;
+    white-space: pre;
+  }
+  
+  .prose blockquote {
+    @apply border-l-4 border-primary pl-3 italic;
+  }
+  
+  .prose table {
+    @apply w-full border-collapse;
+    max-width: 100%;
+  }
+  
+  .prose th,
+  .prose td {
+    @apply border border-border px-2 py-1 text-left;
+    word-wrap: break-word;
+  }
+  
+  .prose th {
+    @apply font-medium;
+  }
+  
+  .prose p {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  
+  .prose li {
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+}

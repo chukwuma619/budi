@@ -8,6 +8,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Send, Bot, User, Lightbulb, Calendar, FileText, BookOpen, Trash2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface ChatMessage {
   id: string;
@@ -86,28 +89,14 @@ export default function ChatPage() {
               }
             ]).flat().reverse();
 
-            // Add welcome message if no history
-            if (formattedHistory.length === 0) {
-              setMessages([{
-                id: 'welcome',
-                content: "Hi! I'm Budi, your AI study assistant. I'm here to help you with your academic journey. You can ask me to summarize notes, create study plans, manage your schedule, or answer any questions about your subjects. How can I help you today?",
-                role: 'assistant',
-                timestamp: new Date()
-              }]);
-            } else {
-              setMessages(formattedHistory);
-            }
+            // Set messages to history (no default welcome message)
+            setMessages(formattedHistory);
           }
         }
       } catch (error) {
         console.error('Error loading chat history:', error);
-        // Set welcome message on error
-        setMessages([{
-          id: 'welcome',
-          content: "Hi! I'm Budi, your AI study assistant. I'm here to help you with your academic journey. You can ask me to summarize notes, create study plans, manage your schedule, or answer any questions about your subjects. How can I help you today?",
-          role: 'assistant',
-          timestamp: new Date()
-        }]);
+        // Don't set any default messages on error
+        setMessages([]);
       } finally {
         setIsLoadingHistory(false);
       }
@@ -186,12 +175,7 @@ export default function ChatPage() {
       });
 
       if (response.ok) {
-        setMessages([{
-          id: 'welcome',
-          content: "Hi! I'm Budi, your AI study assistant. I'm here to help you with your academic journey. You can ask me to summarize notes, create study plans, manage your schedule, or answer any questions about your subjects. How can I help you today?",
-          role: 'assistant',
-          timestamp: new Date()
-        }]);
+        setMessages([]);
       }
     } catch (error) {
       console.error('Error clearing chat history:', error);
@@ -225,23 +209,23 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="h-full flex flex-col space-y-6">
+    <div className="h-full flex flex-col space-y-4 overflow-hidden">
       <div className="flex-shrink-0">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center justify-between text-base">
               <div className="flex items-center gap-2">
-                <Bot className="h-6 w-6 text-primary" />
+                <Bot className="h-5 w-5 text-primary" />
                 AI Assistant Chat
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={clearChatHistory}
-                disabled={isLoading || messages.length <= 1}
-                className="flex items-center gap-2"
+                disabled={isLoading || messages.length === 0}
+                className="flex items-center gap-2 h-8"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-3 w-3" />
                 Clear Chat
               </Button>
             </CardTitle>
@@ -249,24 +233,26 @@ export default function ChatPage() {
         </Card>
       </div>
 
+
+
       {/* Sample Prompts */}
       <div className="flex-shrink-0">
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Quick Start Prompts</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Quick Start Prompts</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               {samplePrompts.map((prompt, index) => (
                 <Button
                   key={index}
                   variant="outline"
-                  className="h-auto p-4 flex items-start gap-3 text-left justify-start"
+                  className="h-auto p-3 flex items-start gap-2 text-left justify-start text-xs"
                   onClick={() => handlePromptClick(prompt.text)}
                 >
-                  <prompt.icon className="h-5 w-5 text-primary flex-shrink-0 mt-1" />
-                  <div>
-                    <div className="font-medium">{prompt.text}</div>
+                  <prompt.icon className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium truncate">{prompt.text}</div>
                     <Badge variant="secondary" className="mt-1 text-xs">
                       {prompt.category}
                     </Badge>
@@ -279,9 +265,9 @@ export default function ChatPage() {
       </div>
 
       {/* Chat Messages */}
-      <Card className="flex-1 flex flex-col">
-        <CardContent className="flex-1 flex flex-col p-0">
-          <ScrollArea className="flex-1 p-4">
+      <Card className="flex-1 flex flex-col min-h-0">
+        <CardContent className="flex-1 flex flex-col p-0 min-h-0">
+          <ScrollArea className="flex-1 p-4 min-h-0">
             <div className="space-y-4">
               {isLoadingHistory ? (
                 <div className="flex items-center justify-center py-8">
@@ -289,6 +275,13 @@ export default function ChatPage() {
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                  </div>
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">Start a conversation with your AI assistant</p>
                   </div>
                 </div>
               ) : (
@@ -306,14 +299,79 @@ export default function ChatPage() {
                   )}
                   
                   <div
-                    className={`max-w-[80%] rounded-lg p-3 ${
+                    className={`max-w-[85%] rounded-lg p-3 ${
                       message.role === 'user'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted'
                     }`}
                   >
-                    <p className="text-sm">{message.content}</p>
-                    <p className={`text-xs mt-1 ${
+                    {message.role === 'assistant' ? (
+                      <div className="prose prose-sm max-w-none dark:prose-invert overflow-hidden">
+                        <ReactMarkdown
+                          components={{
+                            code({ className, children, ...props }: any) {
+                              const match = /language-(\w+)/.exec(className || '');
+                              const isInline = !match;
+                              return !isInline ? (
+                                <div className="overflow-x-auto">
+                                  <SyntaxHighlighter
+                                    style={oneDark as any}
+                                    language={match[1]}
+                                    PreTag="div"
+                                    className="rounded-md text-xs"
+                                    customStyle={{
+                                      margin: 0,
+                                      fontSize: '12px',
+                                      lineHeight: '1.4'
+                                    }}
+                                  >
+                                    {String(children).replace(/\n$/, '')}
+                                  </SyntaxHighlighter>
+                                </div>
+                              ) : (
+                                <code className="bg-secondary px-1 py-0.5 rounded text-xs" {...props}>
+                                  {children}
+                                </code>
+                              );
+                            },
+                            p: ({ children }) => <p className="mb-2 last:mb-0 text-sm leading-relaxed">{children}</p>,
+                            ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-sm">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-sm">{children}</ol>,
+                            li: ({ children }) => <li className="text-sm leading-relaxed">{children}</li>,
+                            h1: ({ children }) => <h1 className="text-base font-bold mb-2">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-sm font-bold mb-2">{children}</h2>,
+                            h3: ({ children }) => <h3 className="text-xs font-bold mb-2">{children}</h3>,
+                            blockquote: ({ children }) => (
+                              <blockquote className="border-l-4 border-primary pl-3 italic text-sm mb-2">
+                                {children}
+                              </blockquote>
+                            ),
+                            table: ({ children }) => (
+                              <div className="overflow-x-auto mb-2">
+                                <table className="min-w-full border-collapse border border-border text-xs">
+                                  {children}
+                                </table>
+                              </div>
+                            ),
+                            th: ({ children }) => (
+                              <th className="border border-border px-2 py-1 text-left font-medium text-xs">
+                                {children}
+                              </th>
+                            ),
+                            td: ({ children }) => (
+                              <td className="border border-border px-2 py-1 text-xs">
+                                {children}
+                              </td>
+                            ),
+                          }}
+                        >
+                          {message.content}
+                        </ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="text-sm break-words">{message.content}</p>
+                    )}
+                    <p className={`text-xs mt-2 ${
                       message.role === 'user' 
                         ? 'text-primary-foreground/70' 
                         : 'text-muted-foreground'

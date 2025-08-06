@@ -568,58 +568,51 @@ export async function getNoteById(userId: string, noteId: string) {
   };
 }
 
-// Helper function to generate AI summary (placeholder for now)
+// Helper function to generate AI summary (now uses OpenAI)
 export async function generateAISummary(text: string, title: string) {
-  // This is a placeholder - in a real implementation, you'd call an AI service
-  // For now, let's create a more intelligent summary
+  // Import the OpenAI function
+  const { generateAISummary: openAISummary } = await import('@/lib/openai');
   
-  const words = text.split(' ').filter(word => word.trim().length > 0);
-  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
-  
-  // Create a more intelligent summary
-  let summary = '';
-  if (words.length > 100) {
-    // Take first 3 sentences and last 1 sentence for a better summary
-    const firstSentences = sentences.slice(0, 3).join('. ');
-    const lastSentence = sentences.length > 3 ? '. ' + sentences[sentences.length - 1] : '';
-    summary = firstSentences + lastSentence + '.';
-  } else {
-    summary = words.slice(0, 50).join(' ') + (words.length > 50 ? '...' : '');
-  }
+  try {
+    return await openAISummary(text, title);
+  } catch (error) {
+    console.error('Error generating AI summary:', error);
+    
+    // Fallback to basic summary if OpenAI fails
+    const words = text.split(' ').filter(word => word.trim().length > 0);
+    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    
+    let summary = '';
+    if (words.length > 100) {
+      const firstSentences = sentences.slice(0, 3).join('. ');
+      const lastSentence = sentences.length > 3 ? '. ' + sentences[sentences.length - 1] : '';
+      summary = firstSentences + lastSentence + '.';
+    } else {
+      summary = words.slice(0, 50).join(' ') + (words.length > 50 ? '...' : '');
+    }
 
-  // Generate more meaningful key points
-  const keyPoints = [];
-  if (sentences.length >= 1) keyPoints.push(`Main concept: ${sentences[0].trim()}`);
-  if (sentences.length >= 2) keyPoints.push(`Important detail: ${sentences[1].trim()}`);
-  if (sentences.length >= 3) keyPoints.push(`Additional point: ${sentences[2].trim()}`);
-  if (sentences.length >= 4) keyPoints.push(`Conclusion: ${sentences[sentences.length - 1].trim()}`);
+    const keyPoints = [];
+    if (sentences.length >= 1) keyPoints.push(`Main concept: ${sentences[0].trim()}`);
+    if (sentences.length >= 2) keyPoints.push(`Important detail: ${sentences[1].trim()}`);
+    if (sentences.length >= 3) keyPoints.push(`Additional point: ${sentences[2].trim()}`);
 
-  // Generate more relevant flashcards
-  const flashcards = [];
-  
-  if (sentences.length > 0) {
-    flashcards.push({
-      question: `What is the main topic discussed in "${title}"?`,
-      answer: sentences[0].trim()
-    });
-  }
-  
-  if (keyPoints.length > 1) {
-    flashcards.push({
-      question: `What are the key points covered?`,
-      answer: keyPoints.map(point => point.replace(/^[^:]+:\s*/, '')).join('; ')
-    });
-  }
+    const flashcards = [];
+    if (sentences.length > 0) {
+      flashcards.push({
+        question: `What is the main topic discussed in "${title}"?`,
+        answer: sentences[0].trim()
+      });
+    }
+    
+         if (keyPoints.length > 1) {
+       flashcards.push({
+         question: `What are the key points covered?`,
+         answer: keyPoints.map(point => point.replace(/^[^:]+:\s*/, '')).join('; ')
+       });
+     }
 
-  // Add a practical application question if the content seems educational
-  if (text.toLowerCase().includes('example') || text.toLowerCase().includes('formula') || text.toLowerCase().includes('method')) {
-    flashcards.push({
-      question: `How would you apply the concepts from "${title}"?`,
-      answer: 'Apply the methods and examples discussed in practical scenarios'
-    });
-  }
-
-  return { summary, keyPoints, flashcards };
+     return { summary, keyPoints, flashcards };
+   }
 }
 
 // Helper function to get user's chat history

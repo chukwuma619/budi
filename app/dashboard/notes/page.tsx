@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { 
   FileText, 
   Upload, 
@@ -18,18 +19,33 @@ import {
   Loader2,
   Trash2,
   Eye,
-  EyeOff
+  EyeOff,
+  MessageCircle,
+  Send,
+  Bot,
+  User,
+  AlertCircle
 } from "lucide-react";
 import { createClient } from '@/lib/supabase/client';
 import { Database } from '@/types/database.types';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 type Note = Database['public']['Tables']['notes']['Row'] & {
   key_points: string[] | null;
   flashcards: { question: string; answer: string }[] | null;
 };
 
+interface ChatMessage {
+  id: string;
+  content: string;
+  role: 'user' | 'assistant';
+  timestamp: Date;
+}
+
 export default function NotesPage() {
-  const [activeTab, setActiveTab] = useState<'upload' | 'text'>('upload');
+  const [activeTab, setActiveTab] = useState<'upload' | 'text' | 'chat'>('upload');
   const [textInput, setTextInput] = useState('');
   const [titleInput, setTitleInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -37,9 +53,22 @@ export default function NotesPage() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [expandedNote, setExpandedNote] = useState<string | null>(null);
+  
+  // Chat functionality
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [uploadedNotes, setUploadedNotes] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedNoteForChat, setSelectedNoteForChat] = useState<string | null>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const supabase = createClient();
 
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const loadNotes = async () => {
     try {
@@ -66,15 +95,161 @@ export default function NotesPage() {
     }
   };
 
-    // Load notes on component mount
-    useEffect(() => {
-      loadNotes();
-    }, [loadNotes]);
-  
+  const loadUploadedNotes = async () => {
+    try {
+      const response = await fetch('/api/upload');
+      if (response.ok) {
+        const data = await response.json();
+        setUploadedNotes(data.notes || []);
+      }
+    } catch (error) {
+      console.error('Error loading uploaded notes:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadNotes();
+    loadUploadedNotes();
+  }, []);
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       setSelectedFile(file);
+    }
+  };
+
+  const handlePDFUpload = async (file: File) => {
+    if (file.type !== 'application/pdf' && 
+        file.type !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' &&
+        file.type !== 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
+      setError('Only PDF, DOCX, and PPTX files are supported');
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError('File size too large. Maximum 10MB allowed.');
+      return;
+    }
+
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Upload failed');
+      }
+
+      const newNote = {
+        id: result.note.id,
+        filename: result.note.filename,
+        content: result.note.content,
+        pages: result.note.pages,
+        created_at: result.note.created_at
+      };
+
+      setUploadedNotes(prev => [newNote, ...prev]);
+      
+      // Add success message to chat
+      const successMessage: ChatMessage = {
+        id: Date.now().toString(),
+        content: `✅ Successfully uploaded "${result.note.filename}" (${result.note.pages} pages). You can now ask me questions about this document!`,
+        role: 'assistant',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, successMessage]);
+    } catch (error) {
+      console.error('Upload error:', error);
+      setError(error instanceof Error ? error.message : 'Upload failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleChatMessage = async (message: string) => {
+    if (!message.trim()) return;
+
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      content: message,
+      role: 'user',
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setIsChatLoading(true);
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
+      // Get the selected note content
+      let selectedNoteContent = null;
+      if (selectedNoteForChat) {
+        const selectedNote = notes.find(note => note.id === selectedNoteForChat);
+        if (selectedNote) {
+          selectedNoteContent = {
+            id: selectedNote.id,
+            filename: selectedNote.title,
+            content: selectedNote.original_text || selectedNote.summary || '',
+            pages: 1,
+            created_at: selectedNote.created_at
+          };
+        }
+      }
+
+      // Call notes-specific chat API
+      const response = await fetch('/api/notes/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: message,
+          userId: user.id,
+          uploadedNotes: selectedNoteContent ? [selectedNoteContent] : []
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get AI response');
+      }
+
+      const { response: aiResponseText } = await response.json();
+
+      const aiResponse: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        content: aiResponseText,
+        role: 'assistant',
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      const errorResponse: ChatMessage = {
+        id: (Date.now() + 1).toString(),
+        content: "I'm sorry, I'm having trouble responding right now. Please try again in a moment.",
+        role: 'assistant',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
+      setIsChatLoading(false);
     }
   };
 
@@ -93,10 +268,13 @@ export default function NotesPage() {
       
       if (file.type === 'text/plain') {
         reader.readAsText(file);
+      } else if (file.type === 'application/pdf' || 
+                 file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+                 file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
+        // For PDF, DOCX, and PPTX files, we'll use the upload API to extract text
+        resolve(`Content from ${file.name} - Will be processed by the upload API`);
       } else {
-        // For now, we'll just read as text. In a real implementation,
-        // you'd use proper PDF/DOCX parsers
-        resolve(`Content from ${file.name} - PDF/DOCX parsing would happen here`);
+        resolve(`Content from ${file.name} - Unsupported file type`);
       }
     });
   };
@@ -199,7 +377,6 @@ export default function NotesPage() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    // You could add a toast notification here
   };
 
   const toggleNoteExpansion = (noteId: string) => {
@@ -230,7 +407,7 @@ export default function NotesPage() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold">Note Summarizer</h1>
-        <p className="text-muted-foreground">Upload files or paste text to get AI-powered summaries</p>
+        <p className="text-muted-foreground">Upload lecture materials or paste text to get AI-powered summaries</p>
       </div>
 
       {/* Input Methods */}
@@ -259,10 +436,21 @@ export default function NotesPage() {
               <FileText className="h-4 w-4 inline mr-2" />
               Paste Text
             </button>
+            <button
+              onClick={() => setActiveTab('chat')}
+              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'chat' 
+                  ? 'bg-background text-foreground shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <MessageCircle className="h-4 w-4 inline mr-2" />
+              Chat with Notes
+            </button>
           </div>
         </CardHeader>
         <CardContent>
-          {activeTab === 'upload' ? (
+          {activeTab === 'upload' && (
             <div className="space-y-4">
               <div>
                 <Label htmlFor="title-input">Title (optional)</Label>
@@ -277,12 +465,12 @@ export default function NotesPage() {
               <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
                 <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                 <div className="space-y-2">
-                  <p className="text-lg font-medium">Drop your files here or click to browse</p>
-                  <p className="text-sm text-muted-foreground">Supports PDF, TXT, and DOCX files</p>
+                  <p className="text-lg font-medium">Drop your lecture materials here or click to browse</p>
+                  <p className="text-sm text-muted-foreground">Supports PDF, DOCX, and PPTX files</p>
                 </div>
                 <Input
                   type="file"
-                  accept=".pdf,.txt,.docx"
+                  accept=".pdf,.docx,.pptx"
                   onChange={handleFileUpload}
                   className="mt-4"
                 />
@@ -315,7 +503,9 @@ export default function NotesPage() {
                 </div>
               )}
             </div>
-          ) : (
+          )}
+
+          {activeTab === 'text' && (
             <div className="space-y-4">
               <div>
                 <Label htmlFor="title-input-text">Title (optional)</Label>
@@ -355,6 +545,335 @@ export default function NotesPage() {
                   </>
                 )}
               </Button>
+            </div>
+          )}
+
+          {activeTab === 'chat' && (
+            <div className="space-y-4">
+              {/* Note Selection */}
+              <div>
+                <Label>Select a Note to Chat With</Label>
+                <div className="mt-2 space-y-2">
+                  {notes.length === 0 ? (
+                    <div className="text-center py-4 text-muted-foreground">
+                      <BookOpen className="h-8 w-8 mx-auto mb-2" />
+                      <p>No notes available. Create some notes first!</p>
+                    </div>
+                  ) : (
+                    notes.map((note) => (
+                      <div
+                        key={note.id}
+                        className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                          selectedNoteForChat === note.id
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border hover:border-primary/50'
+                        }`}
+                        onClick={() => setSelectedNoteForChat(selectedNoteForChat === note.id ? null : note.id)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                            selectedNoteForChat === note.id
+                              ? 'border-primary bg-primary'
+                              : 'border-muted-foreground'
+                          }`}>
+                            {selectedNoteForChat === note.id && (
+                              <div className="w-2 h-2 bg-white rounded-full"></div>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-sm truncate">{note.title}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="secondary" className="text-xs">
+                                {note.upload_type === 'upload' ? 'File Upload' : 'Manual Input'}
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(note.created_at!)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* PDF Upload for Chat */}
+              <div>
+                <Label htmlFor="pdf-upload">Or Upload New Lecture Materials</Label>
+                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center mt-2">
+                  <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Upload PDF, DOCX, or PPTX files to chat with your notes
+                  </p>
+                  <Input
+                    type="file"
+                    accept=".pdf,.docx,.pptx"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handlePDFUpload(file);
+                    }}
+                    className="mt-2"
+                    disabled={isProcessing}
+                  />
+                </div>
+              </div>
+
+              {/* Error Display */}
+              {error && (
+                <div className="flex items-center gap-2 text-destructive text-sm p-3 bg-destructive/10 rounded-lg">
+                  <AlertCircle className="h-4 w-4" />
+                  {error}
+                </div>
+              )}
+
+              {/* Uploaded Notes List */}
+              {uploadedNotes.length > 0 && (
+                <div>
+                  <Label>Your Uploaded Lecture Materials</Label>
+                  <div className="space-y-2 mt-2">
+                    {uploadedNotes.map((note) => (
+                      <div
+                        key={note.id}
+                        className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <FileText className="h-4 w-4 text-primary flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{note.filename}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <Badge variant="secondary" className="text-xs">
+                                {note.pages} pages
+                              </Badge>
+                              <span className="text-xs text-muted-foreground">
+                                {new Date(note.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Chat Interface */}
+              <div className="border rounded-lg">
+                <div className="p-4 border-b">
+                  <h3 className="font-medium">
+                    {selectedNoteForChat 
+                      ? `Chat with "${notes.find(n => n.id === selectedNoteForChat)?.title}"`
+                      : 'Chat with Your Notes'
+                    }
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedNoteForChat 
+                      ? 'Ask questions about this specific note or request study materials'
+                      : 'Select a note above or upload new materials to start chatting'
+                    }
+                  </p>
+                </div>
+                
+                <div className="h-96 flex flex-col">
+                  <ScrollArea className="flex-1 p-4">
+                    <div className="space-y-4">
+                      {messages.length === 0 ? (
+                        <div className="text-center py-8">
+                          <MessageCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-muted-foreground">
+                            {selectedNoteForChat 
+                              ? "Ask me questions about this note or request study materials!"
+                              : "Select a note above to start chatting with it!"
+                            }
+                          </p>
+                          {selectedNoteForChat && (
+                            <div className="mt-4 space-y-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleChatMessage("Generate 5 practice questions from this note")}
+                                className="w-full"
+                              >
+                                Generate Practice Questions
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleChatMessage("Create flashcards from this note")}
+                                className="w-full"
+                              >
+                                Create Flashcards
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleChatMessage("Summarize the key points from this note")}
+                                className="w-full"
+                              >
+                                Summarize Key Points
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        messages.map((message) => (
+                          <div
+                            key={message.id}
+                            className={`flex gap-3 ${
+                              message.role === 'user' ? 'justify-end' : 'justify-start'
+                            }`}
+                          >
+                            {message.role === 'assistant' && (
+                              <div className="flex-shrink-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                                <Bot className="h-4 w-4 text-primary-foreground" />
+                              </div>
+                            )}
+                            
+                            <div
+                              className={`max-w-[85%] rounded-lg p-3 ${
+                                message.role === 'user'
+                                  ? 'bg-primary text-primary-foreground'
+                                  : 'bg-muted'
+                              }`}
+                            >
+                              {message.role === 'assistant' ? (
+                                <div className="prose prose-sm max-w-none dark:prose-invert overflow-hidden">
+                                  <ReactMarkdown
+                                    components={{
+                                      code({ className, children, ...props }: any) {
+                                        const match = /language-(\w+)/.exec(className || '');
+                                        const isInline = !match;
+                                        return !isInline ? (
+                                          <div className="overflow-x-auto">
+                                            <SyntaxHighlighter
+                                              style={oneDark as any}
+                                              language={match[1]}
+                                              PreTag="div"
+                                              className="rounded-md text-xs"
+                                              customStyle={{
+                                                margin: 0,
+                                                fontSize: '12px',
+                                                lineHeight: '1.4'
+                                              }}
+                                            >
+                                              {String(children).replace(/\n$/, '')}
+                                            </SyntaxHighlighter>
+                                          </div>
+                                        ) : (
+                                          <code className="bg-secondary px-1 py-0.5 rounded text-xs" {...props}>
+                                            {children}
+                                          </code>
+                                        );
+                                      },
+                                      p: ({ children }) => <p className="mb-2 last:mb-0 text-sm leading-relaxed">{children}</p>,
+                                      ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-sm">{children}</ul>,
+                                      ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-sm">{children}</ol>,
+                                      li: ({ children }) => <li className="text-sm leading-relaxed">{children}</li>,
+                                      h1: ({ children }) => <h1 className="text-base font-bold mb-2">{children}</h1>,
+                                      h2: ({ children }) => <h2 className="text-sm font-bold mb-2">{children}</h2>,
+                                      h3: ({ children }) => <h3 className="text-xs font-bold mb-2">{children}</h3>,
+                                      blockquote: ({ children }) => (
+                                        <blockquote className="border-l-4 border-primary pl-3 italic text-sm mb-2">
+                                          {children}
+                                        </blockquote>
+                                      ),
+                                      table: ({ children }) => (
+                                        <div className="overflow-x-auto mb-2">
+                                          <table className="min-w-full border-collapse border border-border text-xs">
+                                            {children}
+                                          </table>
+                                        </div>
+                                      ),
+                                      th: ({ children }) => (
+                                        <th className="border border-border px-2 py-1 text-left font-medium text-xs">
+                                          {children}
+                                        </th>
+                                      ),
+                                      td: ({ children }) => (
+                                        <td className="border border-border px-2 py-1 text-xs">
+                                          {children}
+                                        </td>
+                                      ),
+                                    }}
+                                  >
+                                    {message.content}
+                                  </ReactMarkdown>
+                                </div>
+                              ) : (
+                                <p className="text-sm break-words">{message.content}</p>
+                              )}
+                              <p className={`text-xs mt-2 ${
+                                message.role === 'user' 
+                                  ? 'text-primary-foreground/70' 
+                                  : 'text-muted-foreground'
+                              }`}>
+                                {message.timestamp.toLocaleTimeString([], { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })}
+                              </p>
+                            </div>
+                            
+                            {message.role === 'user' && (
+                              <div className="flex-shrink-0 w-8 h-8 bg-secondary rounded-full flex items-center justify-center">
+                                <User className="h-4 w-4" />
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                      
+                      {isChatLoading && (
+                        <div className="flex gap-3">
+                          <div className="flex-shrink-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center">
+                            <Bot className="h-4 w-4 text-primary-foreground" />
+                          </div>
+                          <div className="bg-muted rounded-lg p-3">
+                            <div className="flex space-x-1">
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  </ScrollArea>
+                  
+                  {/* Chat Input */}
+                  <div className="border-t p-4">
+                    <div className="flex gap-2">
+                      <Input
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        placeholder={
+                          selectedNoteForChat 
+                            ? "Ask about this note, request practice questions, or generate study materials..."
+                            : "Select a note above to start chatting..."
+                        }
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            if (selectedNoteForChat) {
+                              handleChatMessage(chatInput);
+                            }
+                          }
+                        }}
+                        disabled={isChatLoading || !selectedNoteForChat}
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={() => handleChatMessage(chatInput)}
+                        disabled={isChatLoading || !chatInput.trim() || !selectedNoteForChat}
+                        size="icon"
+                      >
+                        <Send className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
