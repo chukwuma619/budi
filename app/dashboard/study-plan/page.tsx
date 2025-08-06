@@ -292,7 +292,7 @@ export default function StudyPlanPage() {
       // Get the current task
       const { data: task, error: taskError } = await supabase
         .from('study_tasks')
-        .select('*, study_days!inner(study_plans!inner(user_id))')
+        .select('*, study_days!inner(study_plan_id, study_plans!inner(user_id))')
         .eq('id', taskId)
         .single();
 

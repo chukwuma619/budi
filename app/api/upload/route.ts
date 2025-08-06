@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import pdf from 'pdf-parse';
-import mammoth from 'mammoth';
-import pptx2json from 'pptx2json';
 
 export async function POST(request: NextRequest) {
   try {
@@ -40,18 +37,21 @@ export async function POST(request: NextRequest) {
 
     // Extract text based on file type
     if (file.type === 'application/pdf') {
-      // Extract text from PDF
+      // Extract text from PDF using dynamic import
+      const pdf = (await import('pdf-parse')).default;
       const pdfData = await pdf(buffer);
       extractedText = pdfData.text;
       pages = pdfData.numpages;
     } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-      // Extract text from DOCX
+      // Extract text from DOCX using dynamic import
+      const mammoth = await import('mammoth');
       const result = await mammoth.extractRawText({ buffer });
       extractedText = result.value;
       pages = Math.ceil(extractedText.length / 2000); // Rough estimate: ~2000 chars per page
     } else if (file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
-      // Extract text from PPTX
+      // Extract text from PPTX using dynamic import
       try {
+        const pptx2json = await import('pptx2json');
         const pptxData = await pptx2json.toJson(buffer);
         const slides = pptxData.slides || [];
         
