@@ -403,49 +403,52 @@ export default function NotesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Note Summarizer</h1>
-        <p className="text-muted-foreground">Upload lecture materials or paste text to get AI-powered summaries</p>
+        <h1 className="text-2xl lg:text-3xl font-bold">Note Summarizer</h1>
+        <p className="text-muted-foreground text-sm lg:text-base">Upload lecture materials or paste text to get AI-powered summaries</p>
       </div>
 
       {/* Input Methods */}
       <Card>
         <CardHeader>
-          <div className="flex space-x-1 bg-muted p-1 rounded-lg w-fit">
+          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-1 bg-muted p-1 rounded-lg w-fit">
             <button
               onClick={() => setActiveTab('upload')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+              className={`px-2 lg:px-3 py-1 rounded-md text-xs lg:text-sm font-medium transition-colors ${
                 activeTab === 'upload' 
                   ? 'bg-background text-foreground shadow-sm' 
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <Upload className="h-4 w-4 inline mr-2" />
-              Upload File
+              <Upload className="h-3 w-3 lg:h-4 lg:w-4 inline mr-1 lg:mr-2" />
+              <span className="hidden sm:inline">Upload File</span>
+              <span className="sm:hidden">Upload</span>
             </button>
             <button
               onClick={() => setActiveTab('text')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+              className={`px-2 lg:px-3 py-1 rounded-md text-xs lg:text-sm font-medium transition-colors ${
                 activeTab === 'text' 
                   ? 'bg-background text-foreground shadow-sm' 
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <FileText className="h-4 w-4 inline mr-2" />
-              Paste Text
+              <FileText className="h-3 w-3 lg:h-4 lg:w-4 inline mr-1 lg:mr-2" />
+              <span className="hidden sm:inline">Paste Text</span>
+              <span className="sm:hidden">Text</span>
             </button>
             <button
               onClick={() => setActiveTab('chat')}
-              className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+              className={`px-2 lg:px-3 py-1 rounded-md text-xs lg:text-sm font-medium transition-colors ${
                 activeTab === 'chat' 
                   ? 'bg-background text-foreground shadow-sm' 
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              <MessageCircle className="h-4 w-4 inline mr-2" />
-              Chat with Notes
+              <MessageCircle className="h-3 w-3 lg:h-4 lg:w-4 inline mr-1 lg:mr-2" />
+              <span className="hidden sm:inline">Chat with Notes</span>
+              <span className="sm:hidden">Chat</span>
             </button>
           </div>
         </CardHeader>
@@ -453,50 +456,53 @@ export default function NotesPage() {
           {activeTab === 'upload' && (
             <div className="space-y-4">
               <div>
-                <Label htmlFor="title-input">Title (optional)</Label>
+                <Label htmlFor="title-input" className="text-sm lg:text-base">Title (optional)</Label>
                 <Input
                   id="title-input"
                   value={titleInput}
                   onChange={(e) => setTitleInput(e.target.value)}
                   placeholder="Enter a title for your note"
+                  className="text-sm lg:text-base"
                 />
               </div>
               
-              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
-                <Upload className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4 lg:p-8 text-center">
+                <Upload className="h-8 w-8 lg:h-12 lg:w-12 text-muted-foreground mx-auto mb-3 lg:mb-4" />
                 <div className="space-y-2">
-                  <p className="text-lg font-medium">Drop your lecture materials here or click to browse</p>
-                  <p className="text-sm text-muted-foreground">Supports PDF, DOCX, and PPTX files</p>
+                  <p className="text-sm lg:text-lg font-medium">Drop your lecture materials here or click to browse</p>
+                  <p className="text-xs lg:text-sm text-muted-foreground">Supports PDF, DOCX, and PPTX files</p>
                 </div>
                 <Input
                   type="file"
                   accept=".pdf,.docx,.pptx"
                   onChange={handleFileUpload}
-                  className="mt-4"
+                  className="mt-3 lg:mt-4"
                 />
               </div>
               
               {selectedFile && (
-                <div className="flex items-center justify-between p-4 bg-muted rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <FileCheck className="h-5 w-5 text-green-600" />
-                    <div>
-                      <p className="font-medium">{selectedFile.name}</p>
-                      <p className="text-sm text-muted-foreground">
+                <div className="flex items-center justify-between p-3 lg:p-4 bg-muted rounded-lg">
+                  <div className="flex items-center gap-2 lg:gap-3 min-w-0 flex-1">
+                    <FileCheck className="h-4 w-4 lg:h-5 lg:w-5 text-green-600 flex-shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm lg:text-base truncate">{selectedFile.name}</p>
+                      <p className="text-xs lg:text-sm text-muted-foreground">
                         {(selectedFile.size / 1024).toFixed(1)} KB
                       </p>
                     </div>
                   </div>
-                  <Button onClick={processFile} disabled={isProcessing}>
+                  <Button onClick={processFile} disabled={isProcessing} className="flex-shrink-0 ml-2">
                     {isProcessing ? (
                       <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Processing...
+                        <Loader2 className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2 animate-spin" />
+                        <span className="hidden sm:inline">Processing...</span>
+                        <span className="sm:hidden">...</span>
                       </>
                     ) : (
                       <>
-                        Summarize
-                        <Sparkles className="h-4 w-4 ml-2" />
+                        <span className="hidden sm:inline">Summarize</span>
+                        <span className="sm:hidden">Go</span>
+                        <Sparkles className="h-3 w-3 lg:h-4 lg:w-4 ml-1 lg:ml-2" />
                       </>
                     )}
                   </Button>

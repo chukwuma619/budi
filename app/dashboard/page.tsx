@@ -66,32 +66,33 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-6">
       {/* Welcome Section */}
       <Card>
-        <CardContent className="p-6">
+        <CardContent className="p-4 lg:p-6">
           <div className="flex items-center justify-between mb-4">
-            <div>
-              <h1 className="text-3xl font-bold mb-2">Hi, {firstName}! 👋</h1>
-              <p className="text-muted-foreground">How can I help you today?</p>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl lg:text-3xl font-bold mb-2">Hi, {firstName}! 👋</h1>
+              <p className="text-muted-foreground text-sm lg:text-base">How can I help you today?</p>
             </div>
-            <div className="hidden md:block">
-              <div className="text-6xl">🎓</div>
+            <div className="hidden md:block flex-shrink-0 ml-4">
+              <div className="text-4xl lg:text-6xl">🎓</div>
             </div>
           </div>
           
           {/* Quick Chat Input */}
-          <div className="flex gap-3">
-            <div className="flex-1 bg-muted/50 rounded-lg p-4 border border-muted">
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="flex-1 bg-muted/50 rounded-lg p-3 lg:p-4 border border-muted">
               <div className="flex items-center gap-2 text-muted-foreground">
-                <MessageSquare className="h-4 w-4" />
-                <p className="text-sm">Ask me anything about your studies...</p>
+                <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                <p className="text-sm truncate">Ask me anything about your studies...</p>
               </div>
             </div>
-            <Button asChild>
+            <Button asChild className="sm:w-auto">
               <Link href="/dashboard/chat">
                 <MessageSquare className="h-4 w-4 mr-2" />
-                Chat Now
+                <span className="hidden sm:inline">Chat Now</span>
+                <span className="sm:hidden">Chat</span>
               </Link>
             </Button>
           </div>
@@ -99,36 +100,36 @@ export default async function DashboardPage() {
       </Card>
 
       {/* Overview Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
         
         {/* Today's Schedule */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Today&apos;s Schedule
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base lg:text-lg">
+              <Calendar className="h-4 w-4 lg:h-5 lg:w-5" />
+              <span className="truncate">Today&apos;s Schedule</span>
             </CardTitle>
-            <CardDescription>Your classes for today</CardDescription>
+            <CardDescription className="text-xs lg:text-sm">Your classes for today</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="pt-0">
+            <div className="space-y-2 lg:space-y-3">
               {todaySchedule.length > 0 ? (
                 todaySchedule.map((item, index) => (
                   <div key={index} className="flex items-center justify-between p-2 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium">{item.subject}</p>
-                      <p className="text-sm text-muted-foreground">{item.room}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{item.subject}</p>
+                      <p className="text-xs text-muted-foreground truncate">{item.room}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium">{item.time}</p>
+                    <div className="text-right flex-shrink-0 ml-2">
+                      <p className="text-xs lg:text-sm font-medium">{item.time}</p>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">No classes scheduled for today</p>
+                <p className="text-xs lg:text-sm text-muted-foreground text-center py-4">No classes scheduled for today</p>
               )}
             </div>
-            <Button variant="outline" className="w-full mt-3" asChild>
+            <Button variant="outline" className="w-full mt-3 text-xs lg:text-sm" asChild>
               <Link href="/dashboard/schedule">View Full Schedule</Link>
             </Button>
           </CardContent>
@@ -136,36 +137,36 @@ export default async function DashboardPage() {
 
         {/* Upcoming Tasks */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5" />
-              Upcoming Tasks
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base lg:text-lg">
+              <CheckCircle className="h-4 w-4 lg:h-5 lg:w-5" />
+              <span className="truncate">Upcoming Tasks</span>
             </CardTitle>
-            <CardDescription>Your deadlines and reminders</CardDescription>
+            <CardDescription className="text-xs lg:text-sm">Your deadlines and reminders</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="pt-0">
+            <div className="space-y-2 lg:space-y-3">
               {formattedTasks.length > 0 ? (
                 formattedTasks.map((item, index) => (
-                  <div key={index} className="flex items-center gap-3 p-2 bg-muted rounded-lg">
-                    <div className={`w-2 h-2 rounded-full ${
+                  <div key={index} className="flex items-center gap-2 lg:gap-3 p-2 bg-muted rounded-lg">
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                       item.priority === 'high' ? 'bg-red-500' : 
                       item.priority === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
                     }`} />
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">{item.task}</p>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-xs lg:text-sm truncate">{item.task}</p>
                       <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        Due {item.due}
+                        <Clock className="h-3 w-3 flex-shrink-0" />
+                        <span className="truncate">Due {item.due}</span>
                       </p>
                     </div>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">No upcoming tasks</p>
+                <p className="text-xs lg:text-sm text-muted-foreground text-center py-4">No upcoming tasks</p>
               )}
             </div>
-            <Button variant="outline" className="w-full mt-3" asChild>
+            <Button variant="outline" className="w-full mt-3 text-xs lg:text-sm" asChild>
               <Link href="/dashboard/progress">View All Tasks</Link>
             </Button>
           </CardContent>
@@ -173,28 +174,28 @@ export default async function DashboardPage() {
 
         {/* Recent Notes */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Recent Notes
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base lg:text-lg">
+              <FileText className="h-4 w-4 lg:h-5 lg:w-5" />
+              <span className="truncate">Recent Notes</span>
             </CardTitle>
-            <CardDescription>Your latest summaries and uploads</CardDescription>
+            <CardDescription className="text-xs lg:text-sm">Your latest summaries and uploads</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="pt-0">
+            <div className="space-y-2 lg:space-y-3">
               {formattedNotes.length > 0 ? (
                 formattedNotes.map((item, index) => (
                   <div key={index} className="p-2 bg-muted rounded-lg">
-                    <p className="font-medium text-sm">{item.title}</p>
-                    <p className="text-xs text-muted-foreground">{item.summary}</p>
+                    <p className="font-medium text-xs lg:text-sm truncate">{item.title}</p>
+                    <p className="text-xs text-muted-foreground line-clamp-2">{item.summary}</p>
                     <p className="text-xs text-muted-foreground mt-1">{item.date}</p>
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">No notes yet</p>
+                <p className="text-xs lg:text-sm text-muted-foreground text-center py-4">No notes yet</p>
               )}
             </div>
-            <Button variant="outline" className="w-full mt-3" asChild>
+            <Button variant="outline" className="w-full mt-3 text-xs lg:text-sm" asChild>
               <Link href="/dashboard/notes">Upload New Notes</Link>
             </Button>
           </CardContent>
@@ -202,22 +203,22 @@ export default async function DashboardPage() {
 
         {/* Active Study Plans */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BookOpen className="h-5 w-5" />
-              Active Study Plans
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base lg:text-lg">
+              <BookOpen className="h-4 w-4 lg:h-5 lg:w-5" />
+              <span className="truncate">Active Study Plans</span>
             </CardTitle>
-            <CardDescription>Your current study schedules</CardDescription>
+            <CardDescription className="text-xs lg:text-sm">Your current study schedules</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+          <CardContent className="pt-0">
+            <div className="space-y-2 lg:space-y-3">
               {formattedStudyPlans.length > 0 ? (
                 formattedStudyPlans.map((plan, index) => (
                   <div key={index} className="p-2 bg-muted rounded-lg">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="font-medium text-sm">{plan.subject}</p>
+                      <p className="font-medium text-xs lg:text-sm truncate">{plan.subject}</p>
                       {plan.isUrgent && (
-                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 flex-shrink-0 ml-1">
                           Urgent
                         </span>
                       )}
@@ -237,10 +238,10 @@ export default async function DashboardPage() {
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">No active study plans</p>
+                <p className="text-xs lg:text-sm text-muted-foreground text-center py-4">No active study plans</p>
               )}
             </div>
-            <Button variant="outline" className="w-full mt-3" asChild>
+            <Button variant="outline" className="w-full mt-3 text-xs lg:text-sm" asChild>
               <Link href="/dashboard/study-plan">Create Study Plan</Link>
             </Button>
           </CardContent>
@@ -251,33 +252,33 @@ export default async function DashboardPage() {
       {/* Quick Actions */}
       <Card>
         <CardHeader>
-          <CardTitle>Quick Actions</CardTitle>
-          <CardDescription>Common tasks to get you started</CardDescription>
+          <CardTitle className="text-lg lg:text-xl">Quick Actions</CardTitle>
+          <CardDescription className="text-sm lg:text-base">Common tasks to get you started</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Button variant="outline" className="h-auto p-4 flex flex-col gap-2" asChild>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+            <Button variant="outline" className="h-auto p-3 lg:p-4 flex flex-col gap-2" asChild>
               <Link href="/dashboard/chat">
-                <MessageSquare className="h-6 w-6" />
-                <span>Ask AI Assistant</span>
+                <MessageSquare className="h-5 w-5 lg:h-6 lg:w-6" />
+                <span className="text-xs lg:text-sm">Ask AI Assistant</span>
               </Link>
             </Button>
-            <Button variant="outline" className="h-auto p-4 flex flex-col gap-2" asChild>
+            <Button variant="outline" className="h-auto p-3 lg:p-4 flex flex-col gap-2" asChild>
               <Link href="/dashboard/schedule">
-                <Calendar className="h-6 w-6" />
-                <span>Add Class</span>
+                <Calendar className="h-5 w-5 lg:h-6 lg:w-6" />
+                <span className="text-xs lg:text-sm">Add Class</span>
               </Link>
             </Button>
-            <Button variant="outline" className="h-auto p-4 flex flex-col gap-2" asChild>
+            <Button variant="outline" className="h-auto p-3 lg:p-4 flex flex-col gap-2" asChild>
               <Link href="/dashboard/notes">
-                <FileText className="h-6 w-6" />
-                <span>Summarize Notes</span>
+                <FileText className="h-5 w-5 lg:h-6 lg:w-6" />
+                <span className="text-xs lg:text-sm">Summarize Notes</span>
               </Link>
             </Button>
-            <Button variant="outline" className="h-auto p-4 flex flex-col gap-2" asChild>
+            <Button variant="outline" className="h-auto p-3 lg:p-4 flex flex-col gap-2" asChild>
               <Link href="/dashboard/study-plan">
-                <BookOpen className="h-6 w-6" />
-                <span>Create Study Plan</span>
+                <BookOpen className="h-5 w-5 lg:h-6 lg:w-6" />
+                <span className="text-xs lg:text-sm">Create Study Plan</span>
               </Link>
             </Button>
           </div>

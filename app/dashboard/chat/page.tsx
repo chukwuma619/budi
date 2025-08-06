@@ -191,7 +191,7 @@ export default function ChatPage() {
             <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
             <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
           </div>
-          <p className="text-muted-foreground">Loading your chat...</p>
+          <p className="text-muted-foreground text-sm lg:text-base">Loading your chat...</p>
         </div>
       </div>
     );
@@ -201,58 +201,57 @@ export default function ChatPage() {
     return (
       <div className="h-full flex items-center justify-center">
         <div className="text-center">
-          <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <p className="text-muted-foreground">Please log in to use the AI chat assistant.</p>
+          <Bot className="h-8 w-8 lg:h-12 lg:w-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground text-sm lg:text-base">Please log in to use the AI chat assistant.</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col space-y-4 overflow-hidden">
+    <div className="h-full flex flex-col space-y-3 lg:space-y-4 overflow-hidden">
       <div className="flex-shrink-0">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="flex items-center justify-between text-base">
+            <CardTitle className="flex items-center justify-between text-sm lg:text-base">
               <div className="flex items-center gap-2">
-                <Bot className="h-5 w-5 text-primary" />
-                AI Assistant Chat
+                <Bot className="h-4 w-4 lg:h-5 lg:w-5 text-primary" />
+                <span className="truncate">AI Assistant Chat</span>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={clearChatHistory}
                 disabled={isLoading || messages.length === 0}
-                className="flex items-center gap-2 h-8"
+                className="flex items-center gap-1 lg:gap-2 h-7 lg:h-8 text-xs lg:text-sm"
               >
                 <Trash2 className="h-3 w-3" />
-                Clear Chat
+                <span className="hidden sm:inline">Clear Chat</span>
+                <span className="sm:hidden">Clear</span>
               </Button>
             </CardTitle>
           </CardHeader>
         </Card>
       </div>
 
-
-
       {/* Sample Prompts */}
       <div className="flex-shrink-0">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm">Quick Start Prompts</CardTitle>
+            <CardTitle className="text-xs lg:text-sm">Quick Start Prompts</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {samplePrompts.map((prompt, index) => (
                 <Button
                   key={index}
                   variant="outline"
-                  className="h-auto p-3 flex items-start gap-2 text-left justify-start text-xs"
+                  className="h-auto p-2 lg:p-3 flex items-start gap-2 text-left justify-start text-xs"
                   onClick={() => handlePromptClick(prompt.text)}
                 >
-                  <prompt.icon className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                  <prompt.icon className="h-3 w-3 lg:h-4 lg:w-4 text-primary flex-shrink-0 mt-0.5" />
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium truncate">{prompt.text}</div>
+                    <div className="font-medium truncate text-xs">{prompt.text}</div>
                     <Badge variant="secondary" className="mt-1 text-xs">
                       {prompt.category}
                     </Badge>
@@ -267,10 +266,10 @@ export default function ChatPage() {
       {/* Chat Messages */}
       <Card className="flex-1 flex flex-col min-h-0">
         <CardContent className="flex-1 flex flex-col p-0 min-h-0">
-          <ScrollArea className="flex-1 p-4 min-h-0">
-            <div className="space-y-4">
+          <ScrollArea className="flex-1 p-3 lg:p-4 min-h-0">
+            <div className="space-y-3 lg:space-y-4">
               {isLoadingHistory ? (
-                <div className="flex items-center justify-center py-8">
+                <div className="flex items-center justify-center py-6 lg:py-8">
                   <div className="flex space-x-1">
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
@@ -278,28 +277,28 @@ export default function ChatPage() {
                   </div>
                 </div>
               ) : messages.length === 0 ? (
-                <div className="flex items-center justify-center py-12">
+                <div className="flex items-center justify-center py-8 lg:py-12">
                   <div className="text-center">
-                    <Bot className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                    <p className="text-muted-foreground">Start a conversation with your AI assistant</p>
+                    <Bot className="h-8 w-8 lg:h-12 lg:w-12 text-muted-foreground mx-auto mb-3 lg:mb-4" />
+                    <p className="text-muted-foreground text-sm lg:text-base">Start a conversation with your AI assistant</p>
                   </div>
                 </div>
               ) : (
                 messages.map((message) => (
                 <div
                   key={message.id}
-                  className={`flex gap-3 ${
+                  className={`flex gap-2 lg:gap-3 ${
                     message.role === 'user' ? 'justify-end' : 'justify-start'
                   }`}
                 >
                   {message.role === 'assistant' && (
-                    <div className="flex-shrink-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                      <Bot className="h-4 w-4 text-primary-foreground" />
+                    <div className="flex-shrink-0 w-6 h-6 lg:w-8 lg:h-8 bg-primary rounded-full flex items-center justify-center">
+                      <Bot className="h-3 w-3 lg:h-4 lg:w-4 text-primary-foreground" />
                     </div>
                   )}
                   
                   <div
-                    className={`max-w-[85%] rounded-lg p-3 ${
+                    className={`max-w-[85%] rounded-lg p-2 lg:p-3 ${
                       message.role === 'user'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted'
@@ -321,8 +320,8 @@ export default function ChatPage() {
                                     className="rounded-md text-xs"
                                     customStyle={{
                                       margin: 0,
-                                      fontSize: '12px',
-                                      lineHeight: '1.4'
+                                      fontSize: '11px',
+                                      lineHeight: '1.3'
                                     }}
                                   >
                                     {String(children).replace(/\n$/, '')}
@@ -334,15 +333,15 @@ export default function ChatPage() {
                                 </code>
                               );
                             },
-                            p: ({ children }) => <p className="mb-2 last:mb-0 text-sm leading-relaxed">{children}</p>,
-                            ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-sm">{children}</ul>,
-                            ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-sm">{children}</ol>,
-                            li: ({ children }) => <li className="text-sm leading-relaxed">{children}</li>,
-                            h1: ({ children }) => <h1 className="text-base font-bold mb-2">{children}</h1>,
-                            h2: ({ children }) => <h2 className="text-sm font-bold mb-2">{children}</h2>,
+                            p: ({ children }) => <p className="mb-2 last:mb-0 text-xs lg:text-sm leading-relaxed">{children}</p>,
+                            ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-1 text-xs lg:text-sm">{children}</ul>,
+                            ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-1 text-xs lg:text-sm">{children}</ol>,
+                            li: ({ children }) => <li className="text-xs lg:text-sm leading-relaxed">{children}</li>,
+                            h1: ({ children }) => <h1 className="text-sm lg:text-base font-bold mb-2">{children}</h1>,
+                            h2: ({ children }) => <h2 className="text-xs lg:text-sm font-bold mb-2">{children}</h2>,
                             h3: ({ children }) => <h3 className="text-xs font-bold mb-2">{children}</h3>,
                             blockquote: ({ children }) => (
-                              <blockquote className="border-l-4 border-primary pl-3 italic text-sm mb-2">
+                              <blockquote className="border-l-4 border-primary pl-2 lg:pl-3 italic text-xs lg:text-sm mb-2">
                                 {children}
                               </blockquote>
                             ),
@@ -354,12 +353,12 @@ export default function ChatPage() {
                               </div>
                             ),
                             th: ({ children }) => (
-                              <th className="border border-border px-2 py-1 text-left font-medium text-xs">
+                              <th className="border border-border px-1 lg:px-2 py-1 text-left font-medium text-xs">
                                 {children}
                               </th>
                             ),
                             td: ({ children }) => (
-                              <td className="border border-border px-2 py-1 text-xs">
+                              <td className="border border-border px-1 lg:px-2 py-1 text-xs">
                                 {children}
                               </td>
                             ),
@@ -369,9 +368,9 @@ export default function ChatPage() {
                         </ReactMarkdown>
                       </div>
                     ) : (
-                      <p className="text-sm break-words">{message.content}</p>
+                      <p className="text-xs lg:text-sm break-words">{message.content}</p>
                     )}
-                    <p className={`text-xs mt-2 ${
+                    <p className={`text-xs mt-1 lg:mt-2 ${
                       message.role === 'user' 
                         ? 'text-primary-foreground/70' 
                         : 'text-muted-foreground'
@@ -384,8 +383,8 @@ export default function ChatPage() {
                   </div>
                   
                   {message.role === 'user' && (
-                    <div className="flex-shrink-0 w-8 h-8 bg-secondary rounded-full flex items-center justify-center">
-                      <User className="h-4 w-4" />
+                    <div className="flex-shrink-0 w-6 h-6 lg:w-8 lg:h-8 bg-secondary rounded-full flex items-center justify-center">
+                      <User className="h-3 w-3 lg:h-4 lg:w-4" />
                     </div>
                   )}
                 </div>
@@ -393,11 +392,11 @@ export default function ChatPage() {
               )}
               
               {isLoading && (
-                <div className="flex gap-3">
-                  <div className="flex-shrink-0 w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                    <Bot className="h-4 w-4 text-primary-foreground" />
+                <div className="flex gap-2 lg:gap-3">
+                  <div className="flex-shrink-0 w-6 h-6 lg:w-8 lg:h-8 bg-primary rounded-full flex items-center justify-center">
+                    <Bot className="h-3 w-3 lg:h-4 lg:w-4 text-primary-foreground" />
                   </div>
-                  <div className="bg-muted rounded-lg p-3">
+                  <div className="bg-muted rounded-lg p-2 lg:p-3">
                     <div className="flex space-x-1">
                       <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
                       <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
@@ -411,7 +410,7 @@ export default function ChatPage() {
           </ScrollArea>
           
           {/* Chat Input */}
-          <div className="border-t p-4">
+          <div className="border-t p-3 lg:p-4">
             <div className="flex gap-2">
               <Input
                 value={inputValue}
@@ -424,14 +423,15 @@ export default function ChatPage() {
                   }
                 }}
                 disabled={isLoading}
-                className="flex-1"
+                className="flex-1 text-xs lg:text-sm"
               />
               <Button 
                 onClick={() => handleSendMessage(inputValue)}
                 disabled={isLoading || !inputValue.trim() || !user}
                 size="icon"
+                className="h-9 w-9 lg:h-10 lg:w-10"
               >
-                <Send className="h-4 w-4" />
+                <Send className="h-3 w-3 lg:h-4 lg:w-4" />
               </Button>
             </div>
           </div>

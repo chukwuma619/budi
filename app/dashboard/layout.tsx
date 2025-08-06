@@ -18,7 +18,7 @@ export default async function DashboardLayout({
     <div className="flex h-screen bg-background">
       <SidebarNav />
       <main className="flex-1 overflow-y-auto">
-        <div className="container mx-auto p-6 h-full">
+        <div className="container mx-auto p-4 lg:p-6 h-full">
           {children}
         </div>
       </main>
